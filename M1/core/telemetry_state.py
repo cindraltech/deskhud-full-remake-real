@@ -17,7 +17,6 @@ When Milestone 2 adds USB, only the source changes — this file stays identical
 import threading
 from typing import Any
 
-
 # Default values returned when a key has never been written.
 # Widgets can always call get() safely without checking for None.
 DEFAULTS = {
@@ -35,6 +34,16 @@ DEFAULTS = {
 
     "net_up":       0.0,   # MB/s
     "net_down":     0.0,   # MB/s
+    "net_ping":     0.0,   # ms  ← NEW
+
+    # GPU — populated by GPUtil on NVIDIA, 0.0 otherwise   ← NEW block
+    "gpu_usage":    0.0,   # %
+    "gpu_temp":     0.0,   # °C
+    "gpu_mem_used": 0.0,   # MB
+    "gpu_mem_total":0.0,   # MB
+    "gpu_power":    0.0,   # W  (not available via GPUtil, reserved)
+    "gpu_name":     "",    # e.g. "NVIDIA GeForce RTX 3080"
+    "gpu_available":False, # True when a supported GPU was detected
 }
 
 

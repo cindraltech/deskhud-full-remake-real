@@ -13,7 +13,9 @@ Responsibilities:
 - Log frame time warnings when FPS drops below target
 - Clean shutdown on quit
 
-Nothing else. No widget logic, no telemetry, no config parsing.
+Milestone 1 additions:
+- F11 toggles between windowed and fullscreen at runtime
+- Mouse cursor is visible in windowed mode, hidden in fullscreen
 """
 
 import logging
@@ -37,8 +39,12 @@ class Renderer:
         self._clock         = None
         self._running       = False
 
+        # Track current fullscreen state independently of SETTINGS
+        # so F11 can toggle it at runtime without touching the frozen dataclass.
+        self._fullscreen = SETTINGS.fullscreen
+
         # Frame timing for performance logging
-        self._frame_warn_threshold = 1.0 / (SETTINGS.fps * 0.8)  # warn if >25% over budget
+        self._frame_warn_threshold = 1.0 / (SETTINGS.fps * 0.8)
 
     # ── Lifecycle ─────────────────────────────────────────────────────
 
@@ -46,27 +52,11 @@ class Renderer:
         """
         Initialise pygame and open the display.
         Must be called before run().
-        Raises RuntimeError if display cannot be opened.
         """
         pygame.init()
-        pygame.mouse.set_visible(False)
 
-        flags = 0
-        if SETTINGS.fullscreen:
-            flags = pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF
-
-        try:
-            self._screen = pygame.display.set_mode(
-                (SETTINGS.width, SETTINGS.height), flags
-            )
-        except Exception as exc:
-            # Fullscreen failed — fall back to windowed (common on desktop dev)
-            log.warning(
-                f"Fullscreen failed ({exc}). Falling back to windowed mode."
-            )
-            self._screen = pygame.display.set_mode(
-                (SETTINGS.width, SETTINGS.height)
-            )
+        self._screen = self._open_window(self._fullscreen)
+        self._apply_cursor()
 
         pygame.display.set_caption(SETTINGS.title)
         self._clock = pygame.time.Clock()
@@ -74,7 +64,7 @@ class Renderer:
         log.info(
             f"Display opened: {SETTINGS.width}x{SETTINGS.height} "
             f"@ {SETTINGS.fps}fps "
-            f"({'fullscreen' if SETTINGS.fullscreen else 'windowed'})"
+            f"({'fullscreen' if self._fullscreen else 'windowed'})"
         )
 
     def run(self) -> None:
@@ -96,8 +86,6 @@ class Renderer:
                 self._handle_event(event)
 
             # ── 2. Process touch input ────────────────────────────────
-            # Touch handler posts its own pygame events, but we also
-            # let it do per-frame processing here if needed
             self._touch.process()
 
             # ── 3. Clear screen ───────────────────────────────────────
@@ -136,9 +124,10 @@ class Renderer:
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 self._running = False
+            elif event.key == pygame.K_F11:
+                self._toggle_fullscreen()
 
         elif event.type == EVENT_GESTURE:
-            # Touch handler posted a gesture — dispatch to widget engine
             self._engine.handle_touch(
                 event.dict.get("x", 0),
                 event.dict.get("y", 0),
@@ -146,9 +135,50 @@ class Renderer:
             )
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            # Desktop testing fallback — mouse click acts as tap
+            # Desktop fallback — left click acts as tap
             x, y = event.pos
             self._engine.handle_touch(x, y, "tap")
+
+    # ── Fullscreen toggle ─────────────────────────────────────────────
+
+    def _toggle_fullscreen(self) -> None:
+        """
+        Switch between windowed and fullscreen at runtime.
+        Recreates the pygame display surface with the new flags.
+        The window size stays at SETTINGS.width × SETTINGS.height in both modes.
+        """
+        self._fullscreen = not self._fullscreen
+        self._screen = self._open_window(self._fullscreen)
+        self._apply_cursor()
+
+        mode_label = "fullscreen" if self._fullscreen else "windowed"
+        log.info(f"Display toggled to {mode_label}.")
+
+    def _open_window(self, fullscreen: bool) -> pygame.Surface:
+        """
+        Open (or reopen) the pygame display with the given mode.
+        Falls back to windowed if fullscreen fails.
+        """
+        if fullscreen:
+            flags = pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF
+            try:
+                return pygame.display.set_mode(
+                    (SETTINGS.width, SETTINGS.height), flags
+                )
+            except Exception as exc:
+                log.warning(
+                    f"Fullscreen failed ({exc}). Falling back to windowed."
+                )
+                self._fullscreen = False
+
+        return pygame.display.set_mode((SETTINGS.width, SETTINGS.height))
+
+    def _apply_cursor(self) -> None:
+        """
+        Show the mouse cursor in windowed mode, hide it in fullscreen.
+        Called on init and every time fullscreen state changes.
+        """
+        pygame.mouse.set_visible(not self._fullscreen)
 
     # ── Cleanup ───────────────────────────────────────────────────────
 
