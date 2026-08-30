@@ -1,2 +1,2 @@
 # Deskhud full remake
-using chatgpt recommended AI
+claude for coding, chatgpt for simple fixes, gemini
