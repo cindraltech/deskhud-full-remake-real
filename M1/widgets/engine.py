@@ -30,6 +30,7 @@ REGISTRY: dict[str, tuple[str, str]] = {
     "cpu":   ("widgets.cpu_widget",   "CpuWidget"),
     "ram":   ("widgets.ram_widget",   "RamWidget"),
     "clock": ("widgets.clock_widget", "ClockWidget"),
+    "gpu":   ("widgets.gpu_widget",   "GpuWidget"),
 }
 
 
